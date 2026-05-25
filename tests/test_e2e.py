@@ -50,6 +50,7 @@ def run(expression: str) -> subprocess.CompletedProcess:
     ],
 )
 def test_valid_expressions_return_result(expression, expected):
+    print("Hello World!")
     result = run(expression)
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == expected
