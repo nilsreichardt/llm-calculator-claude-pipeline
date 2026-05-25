@@ -48,7 +48,7 @@ jobs:
       - name: Validate test collection
         run: pytest --collect-only -q
 
-      # Runs the suite; the live E2E tests skip automatically because no
-      # OPENAI_API_KEY is present here. Proves the harness itself is green.
       - name: Run tests (live E2E auto-skip without key)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: pytest -v
