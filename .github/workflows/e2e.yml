@@ -1,0 +1,66 @@
+# Live end-to-end tests against the real OpenAI API. These need OPENAI_API_KEY,
+# which GitHub deliberately withholds from fork pull requests so a malicious PR
+# can't steal it. To let fork contributors still run them safely, this workflow:
+#
+#   1. Uses `pull_request_target`, so it runs in the BASE repo's trusted context
+#      (where secrets are reachable) rather than the fork's context.
+#   2. Binds the key to the `e2e` GitHub Environment, which has a REQUIRED
+#      REVIEWER. The job pauses until a maintainer approves it, so the key is
+#      never released to PR code that hasn't been reviewed.
+#   3. Checks out the PR's head commit explicitly, so the maintainer is
+#      approving — and the tests exercise — the contributor's actual code.
+#
+# One-time repo setup (Settings -> Environments -> "e2e"):
+#   - Add an ENVIRONMENT secret named OPENAI_API_KEY (not a plain repo secret,
+#     so it is only reachable from this gated environment).
+#   - Add yourself (or the team) under "Required reviewers".
+# Optional (Settings -> Actions -> General): "Require approval for all outside
+# collaborators" for an extra gate on running any fork workflow.
+#
+# REVIEW THE DIFF BEFORE APPROVING: approving releases the key and runs the PR's
+# code against the paid API.
+name: E2E (live API)
+
+on:
+  pull_request_target:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Live E2E tests
+    runs-on: ubuntu-latest
+    # Required-reviewer gate: holds the run (and the key) until a maintainer
+    # approves. OPENAI_API_KEY is defined as a secret on this environment.
+    environment: e2e
+    steps:
+      # For a fork PR the head lives in the contributor's repo, so check out
+      # their repo + commit explicitly. Falls back to this repo for
+      # workflow_dispatch runs.
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run live E2E tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: pytest -v

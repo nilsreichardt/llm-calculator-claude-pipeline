@@ -1,0 +1,54 @@
+# Fast feedback that runs on every push and pull request, including PRs from
+# forks. It needs no secrets, so GitHub runs it automatically for outside
+# contributors and they get results in seconds. The live E2E tests (which need
+# the OpenAI key) live in e2e.yml and are gated behind a maintainer approval.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Lint & validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Byte-compile sources
+        run: python -m compileall -q calculator.py tests
+
+      - name: Import smoke test
+        run: python -c "import calculator"
+
+      # Confirms the test suite is importable and well-formed without making any
+      # API calls. The live tests themselves run in e2e.yml.
+      - name: Validate test collection
+        run: pytest --collect-only -q
+
+      # Runs the suite; the live E2E tests skip automatically because no
+      # OPENAI_API_KEY is present here. Proves the harness itself is green.
+      - name: Run tests (live E2E auto-skip without key)
+        run: pytest -v
