@@ -57,6 +57,7 @@ def test_valid_expressions_return_result(expression, expected):
 
 @requires_api_key
 def test_decimal_result():
+    print("Hello World!")
     result = run("10 / 4")
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "2.5"
